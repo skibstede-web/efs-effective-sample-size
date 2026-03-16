@@ -1,0 +1,54 @@
+{
+  "meta": {
+    "project_name": "nir_effective_sample_size",
+    "scenario_name": "baseline_case",
+    "setup_type": "pipe",
+    "notes": ""
+  },
+  "powder": {
+    "bulk_density_kg_m3": null,
+    "particle_density_kg_m3": null,
+    "particle_diameter_m": null,
+    "void_fraction": null
+  },
+  "optics": {
+    "probe_diameter_m": null,
+    "penetration_depth_m": null,
+    "illumination_diameter_m": null,
+    "interaction_area_factor": 1.0,
+    "interaction_volume_factor": 1.0
+  },
+  "acquisition": {
+    "acquisition_time_s": null,
+    "n_scans_averaged": 1,
+    "scan_time_s": null,
+    "sampling_interval_s": null
+  },
+  "assumptions": {
+    "flow_model": "plug_flow",
+    "penetration_model": "uniform_depth",
+    "particle_model": "monodisperse_spheres",
+    "resampling_model": "none",
+    "resampling_factor": 1.0
+  },
+  "setup": {
+    "setup_type": "pipe",
+    "common": {},
+    "static": {},
+    "spoon": {},
+    "spiderwheel": {},
+    "pipe": {
+      "pipe_diameter_m": null,
+      "mass_flow_rate_kg_s": null,
+      "velocity_profile_factor": 1.0,
+      "wall_stagnation_factor": 1.0,
+      "filled_fraction": null
+    }
+  },
+  "sweep": {
+    "variable_name": null,
+    "values": [],
+    "display_unit": null,
+    "internal_unit": null
+  }
+}

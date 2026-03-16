@@ -1,0 +1,567 @@
+"""Reusable reporting helpers for notebook exports."""
+
+from __future__ import annotations
+
+from datetime import datetime
+import json
+from pathlib import Path
+import re
+from types import SimpleNamespace
+from typing import Any
+
+import matplotlib.pyplot as plt
+import pandas as pd
+from matplotlib.figure import Figure
+
+
+def create_run_directory(project_root: Path | str, setup_name: str) -> tuple[str, Path]:
+    """Create a timestamped report directory for a setup."""
+    root = Path(project_root)
+    if not setup_name or not isinstance(setup_name, str):
+        raise ValueError("setup_name must be a non-empty string.")
+    if not root.exists():
+        raise FileNotFoundError(f"Project root does not exist: {root}")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_dir = root / "reports" / setup_name / timestamp
+    run_dir.mkdir(parents=True, exist_ok=False)
+    return timestamp, run_dir
+
+
+def save_dataframe_csv(df: pd.DataFrame | None, output_path: Path | str) -> Path | None:
+    """Save a DataFrame to CSV if present."""
+    if df is None:
+        return None
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("df must be a pandas DataFrame or None.")
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(output, index=False, encoding="utf-8")
+    return output
+
+
+def save_dataframes_dict(
+    dataframes_dict: dict[str, pd.DataFrame | None],
+    run_dir: Path | str,
+) -> list[str]:
+    """Save a mapping of file stems to DataFrames under a run directory."""
+    if not isinstance(dataframes_dict, dict):
+        raise TypeError("dataframes_dict must be a dictionary.")
+    run_path = Path(run_dir)
+    saved_files: list[str] = []
+    for name, df in dataframes_dict.items():
+        if not name or df is None:
+            continue
+        filename = name if name.lower().endswith(".csv") else f"{name}.csv"
+        saved_path = save_dataframe_csv(df, run_path / filename)
+        if saved_path is not None:
+            saved_files.append(saved_path.name)
+    return saved_files
+
+
+def save_figure(fig: Figure | None, output_path: Path | str, dpi: int = 300) -> Path | None:
+    """Save a matplotlib figure to PNG if present."""
+    if fig is None:
+        return None
+    if not isinstance(fig, Figure):
+        raise TypeError("fig must be a matplotlib.figure.Figure or None.")
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, dpi=dpi, bbox_inches="tight")
+    return output
+
+
+def save_figures_dict(
+    figures_dict: dict[str, Figure | None],
+    run_dir: Path | str,
+    dpi: int = 300,
+) -> list[str]:
+    """Save a mapping of file stems to PNG figures under a run directory."""
+    if not isinstance(figures_dict, dict):
+        raise TypeError("figures_dict must be a dictionary.")
+    run_path = Path(run_dir)
+    saved_files: list[str] = []
+    for name, fig in figures_dict.items():
+        if not name or fig is None:
+            continue
+        filename = name if name.lower().endswith(".png") else f"{name}.png"
+        saved_path = save_figure(fig, run_path / filename, dpi=dpi)
+        if saved_path is not None:
+            saved_files.append(saved_path.name)
+    return saved_files
+
+
+def write_metadata_json(metadata: dict[str, Any], output_path: Path | str) -> Path:
+    """Write metadata as UTF-8 JSON."""
+    if not isinstance(metadata, dict):
+        raise TypeError("metadata must be a dictionary.")
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(metadata, indent=2, ensure_ascii=False, default=_json_default),
+        encoding="utf-8",
+    )
+    return output
+
+
+def looks_like_python_code(text: str) -> bool:
+    """Return True when markdown text strongly resembles pasted Python code."""
+    normalized = (text or "").replace("\r\n", "\n")
+    stripped_lines = [line.rstrip() for line in normalized.split("\n")]
+    content_lines = [line for line in stripped_lines if line.strip()]
+    if not content_lines:
+        return False
+
+    code_like_signals = 0
+
+    strong_substrings = (
+        "plt.",
+        "ax.",
+        "fig.",
+        "np.",
+        "pd.",
+        "tight_layout(",
+        ".show(",
+        ".legend(",
+        ".grid(",
+    )
+    code_like_signals += sum(1 for line in content_lines if any(token in line for token in strong_substrings))
+
+    python_statement_lines = sum(
+        1
+        for line in content_lines
+        if re.match(r"^\s*(def|for|while|if|elif|else|return|with|try|except|class)\b", line)
+    )
+    code_like_signals += python_statement_lines
+
+    indented_lines = sum(1 for line in content_lines if re.match(r"^\s{4,}\S", line))
+    if indented_lines >= 2:
+        code_like_signals += 1
+
+    colon_block_lines = sum(1 for index, line in enumerate(content_lines[:-1]) if line.rstrip().endswith(":"))
+    if colon_block_lines and indented_lines:
+        code_like_signals += 1
+
+    assignment_call_lines = sum(
+        1
+        for line in content_lines
+        if "=" in line
+        and "==" not in line
+        and not line.lstrip().startswith(("#", "-", "*"))
+        and re.search(r"=\s*[A-Za-z_][A-Za-z0-9_\.]*\s*\(", line)
+    )
+    if assignment_call_lines >= 1:
+        code_like_signals += assignment_call_lines
+
+    bracket_expression_lines = sum(
+        1
+        for line in content_lines
+        if re.match(r"^\s*[A-Za-z_][A-Za-z0-9_]*(\[[^\]]+\])?\s*=", line)
+        or re.search(r"\[[\"'][^\"']+[\"']\]", line)
+    )
+    if bracket_expression_lines >= 2:
+        code_like_signals += 1
+
+    return code_like_signals >= 2
+
+
+def extract_markdown_cells_from_notebook(notebook_path: Path | str) -> list[str]:
+    """Return markdown cell sources from a notebook in reading order."""
+    try:
+        import nbformat
+    except ImportError as exc:
+        raise ImportError(
+            "nbformat is required for Markdown-to-Word rendering. Install it before running this notebook export section."
+        ) from exc
+
+    path = Path(notebook_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Notebook file not found: {path}")
+    notebook = nbformat.read(path, as_version=4)
+    markdown_cells: list[str] = []
+    for cell_index, cell in enumerate(notebook.cells):
+        if getattr(cell, "cell_type", "") == "markdown":
+            markdown_text = str(getattr(cell, "source", ""))
+            if looks_like_python_code(markdown_text):
+                print(
+                    f"Warning: skipped suspicious markdown cell {cell_index} in {path.name} because it looks like Python code."
+                )
+                continue
+            markdown_cells.append(markdown_text)
+    return markdown_cells
+
+
+def add_markdown_cells_to_docx(doc: Any, markdown_cells: list[str], run_dir: Path | str) -> None:
+    """Render notebook markdown cells into a Word document."""
+    if not markdown_cells:
+        doc.add_paragraph("No markdown narrative was found in the notebook.")
+        return
+
+    state = SimpleNamespace(run_dir=Path(run_dir), equation_counter=0)
+    for markdown_text in markdown_cells:
+        render_markdown_text_to_docx(doc, markdown_text, state)
+
+
+def render_markdown_text_to_docx(doc: Any, markdown_text: str, state: Any) -> None:
+    """Render lightweight Markdown into a Word document."""
+    from docx.shared import Inches
+
+    text = (markdown_text or "").replace("\r\n", "\n")
+    if not text.strip():
+        return
+
+    in_code_block = False
+    in_display_math = False
+    code_buffer: list[str] = []
+    display_math_buffer: list[str] = []
+    paragraph_buffer: list[str] = []
+
+    def flush_paragraph() -> None:
+        if not paragraph_buffer:
+            return
+        paragraph = " ".join(line.strip() for line in paragraph_buffer if line.strip())
+        paragraph_buffer.clear()
+        if paragraph:
+            doc.add_paragraph(_strip_inline_markdown(paragraph))
+
+    def flush_code_block() -> None:
+        if not code_buffer:
+            return
+        for code_line in code_buffer:
+            doc.add_paragraph(code_line, style="No Spacing")
+        code_buffer.clear()
+
+    def flush_display_math() -> None:
+        if not display_math_buffer:
+            return
+        equation_text = "\n".join(display_math_buffer).strip()
+        display_math_buffer.clear()
+        if not equation_text:
+            return
+        equation_path = _render_display_equation_to_png(equation_text, state.run_dir, state.equation_counter)
+        state.equation_counter += 1
+        if equation_path is None:
+            doc.add_paragraph(_latex_to_readable_text(equation_text))
+            return
+        try:
+            doc.add_picture(str(equation_path), width=Inches(5.75))
+        except Exception:
+            doc.add_paragraph(_latex_to_readable_text(equation_text))
+
+    for raw_line in text.split("\n"):
+        line = raw_line.rstrip()
+        stripped = line.strip()
+
+        if stripped.startswith("```"):
+            flush_paragraph()
+            if in_code_block:
+                flush_code_block()
+                in_code_block = False
+            else:
+                in_code_block = True
+            continue
+
+        if in_code_block:
+            code_buffer.append(line)
+            continue
+
+        if stripped == "$$" and not in_display_math:
+            flush_paragraph()
+            in_display_math = True
+            continue
+
+        if stripped == "$$" and in_display_math:
+            flush_display_math()
+            in_display_math = False
+            continue
+
+        if not in_display_math and stripped.startswith("$$") and stripped.endswith("$$") and len(stripped) > 4:
+            flush_paragraph()
+            display_math_buffer.append(stripped[2:-2].strip())
+            flush_display_math()
+            continue
+
+        if in_display_math:
+            display_math_buffer.append(line)
+            continue
+
+        if not stripped:
+            flush_paragraph()
+            continue
+
+        heading_match = re.match(r"^(#{1,4})\s+(.*)$", stripped)
+        if heading_match:
+            flush_paragraph()
+            level = len(heading_match.group(1))
+            heading_text = _strip_inline_markdown(heading_match.group(2).strip())
+            if heading_text:
+                doc.add_heading(heading_text, level=level)
+            continue
+
+        bullet_match = re.match(r"^[-*+]\s+(.*)$", stripped)
+        if bullet_match:
+            flush_paragraph()
+            doc.add_paragraph(_strip_inline_markdown(bullet_match.group(1).strip()), style="List Bullet")
+            continue
+
+        numbered_match = re.match(r"^\d+\.\s+(.*)$", stripped)
+        if numbered_match:
+            flush_paragraph()
+            doc.add_paragraph(_strip_inline_markdown(numbered_match.group(1).strip()), style="List Number")
+            continue
+
+        paragraph_buffer.append(line)
+
+    flush_paragraph()
+    if in_code_block:
+        flush_code_block()
+    if in_display_math:
+        flush_display_math()
+
+
+def build_word_report(
+    report_title: str,
+    setup_name: str,
+    timestamp: str,
+    run_dir: Path | str,
+    notebook_path: Path | str,
+    purpose_text: str,
+    assumptions_text: str,
+    parameter_summary: dict[str, Any] | list[Any] | tuple[Any, ...] | str | None,
+    csv_filenames: list[str] | tuple[str, ...] | None,
+    figure_filenames: list[str] | tuple[str, ...] | None,
+    output_filename: str,
+) -> Path:
+    """Build a Word report with notebook markdown narrative and embedded figures."""
+    try:
+        from docx import Document
+        from docx.shared import Inches
+    except ImportError as exc:
+        raise ImportError(
+            "python-docx is required for Word export. Install it before running this notebook export section."
+        ) from exc
+
+    run_path = Path(run_dir)
+    notebook_file = Path(notebook_path)
+    output_path = run_path / output_filename
+    document = Document()
+
+    document.add_heading(report_title, level=0)
+
+    document.add_heading("Run Metadata", level=1)
+    metadata_lines = [
+        f"Setup name: {setup_name}",
+        f"Run timestamp: {timestamp}",
+        f"Notebook filename: {notebook_file.name}",
+        f"Run directory: {run_path}",
+    ]
+    for line in metadata_lines:
+        document.add_paragraph(line)
+
+    document.add_heading("Notebook Narrative", level=1)
+    markdown_cells = extract_markdown_cells_from_notebook(notebook_file)
+    add_markdown_cells_to_docx(document, markdown_cells, run_path)
+
+    document.add_heading("Purpose", level=1)
+    document.add_paragraph(purpose_text or "No summary text provided.")
+
+    document.add_heading("Assumptions", level=1)
+    document.add_paragraph(assumptions_text or "No assumptions text provided.")
+
+    document.add_heading("Parameter Summary", level=1)
+    _add_parameter_summary(document, parameter_summary)
+
+    document.add_heading("Exported CSV Files", level=1)
+    csv_names = [name for name in (csv_filenames or []) if name]
+    if csv_names:
+        for filename in csv_names:
+            document.add_paragraph(filename, style="List Bullet")
+    else:
+        document.add_paragraph("No CSV tables were saved.")
+    document.add_paragraph("Detailed tables are saved separately as CSV files in the run folder.")
+
+    document.add_heading("Figures", level=1)
+    figure_names = [name for name in (figure_filenames or []) if name]
+    if not figure_names:
+        document.add_paragraph("No figure files were saved.")
+    else:
+        for filename in figure_names:
+            figure_path = run_path / filename
+            document.add_paragraph(filename, style="List Bullet")
+            if not figure_path.exists():
+                document.add_paragraph(f"Skipped embedding {filename} because the file was not found.")
+                continue
+            try:
+                document.add_picture(str(figure_path), width=Inches(6.25))
+            except Exception:
+                document.add_paragraph(f"Skipped embedding {filename} because it could not be inserted.")
+
+    document.add_heading("Closing Note", level=1)
+    document.add_paragraph(
+        "This report captures the notebook narrative, summary metadata, and exported artifacts for this run."
+    )
+
+    document.save(str(output_path))
+    return output_path
+
+
+def _add_parameter_summary(document: Any, parameter_summary: Any) -> None:
+    """Render parameter summary content into a docx document."""
+    if parameter_summary is None:
+        document.add_paragraph("No parameter summary provided.")
+        return
+    if isinstance(parameter_summary, dict):
+        if not parameter_summary:
+            document.add_paragraph("No parameter summary provided.")
+            return
+        for key, value in parameter_summary.items():
+            document.add_paragraph(f"{key}: {_stringify(value)}", style="List Bullet")
+        return
+    if isinstance(parameter_summary, (list, tuple)):
+        if not parameter_summary:
+            document.add_paragraph("No parameter summary provided.")
+            return
+        for item in parameter_summary:
+            if isinstance(item, dict) and len(item) == 1:
+                key, value = next(iter(item.items()))
+                document.add_paragraph(f"{key}: {_stringify(value)}", style="List Bullet")
+            else:
+                document.add_paragraph(_stringify(item), style="List Bullet")
+        return
+    document.add_paragraph(_stringify(parameter_summary))
+
+
+def _strip_inline_markdown(text: str) -> str:
+    """Convert simple inline Markdown to plain readable text."""
+    cleaned = _replace_inline_math(text)
+    cleaned = re.sub(r"`([^`]*)`", r"\1", cleaned)
+    cleaned = re.sub(r"\*\*([^*]+)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"\*([^*]+)\*", r"\1", cleaned)
+    cleaned = re.sub(r"__([^_]+)__", r"\1", cleaned)
+    cleaned = re.sub(r"_([^_]+)_", r"\1", cleaned)
+    cleaned = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"\1", cleaned)
+    cleaned = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", cleaned)
+    return cleaned.strip()
+
+
+def _replace_inline_math(text: str) -> str:
+    """Replace inline LaTeX math with a readable plain-text approximation."""
+    def repl(match: re.Match[str]) -> str:
+        return _latex_to_readable_text(match.group(1))
+
+    return re.sub(r"(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)", repl, text)
+
+
+def _latex_to_readable_text(text: str) -> str:
+    """Convert a subset of LaTeX math into readable plain text."""
+    cleaned = text.strip()
+    if not cleaned:
+        return ""
+
+    replacements = {
+        r"\cdot": " * ",
+        r"\times": " x ",
+        r"\pm": " +/- ",
+        r"\approx": " approx ",
+        r"\leq": " <= ",
+        r"\geq": " >= ",
+        r"\neq": " != ",
+        r"\to": " -> ",
+        r"\rightarrow": " -> ",
+        r"\left": "",
+        r"\right": "",
+        r"\,": " ",
+        r"\;": " ",
+        r"\:": " ",
+        r"\!": "",
+    }
+    greek_map = {
+        "alpha": "alpha",
+        "beta": "beta",
+        "gamma": "gamma",
+        "delta": "delta",
+        "epsilon": "epsilon",
+        "eta": "eta",
+        "theta": "theta",
+        "lambda": "lambda",
+        "mu": "mu",
+        "nu": "nu",
+        "pi": "pi",
+        "rho": "rho",
+        "sigma": "sigma",
+        "tau": "tau",
+        "phi": "phi",
+        "omega": "omega",
+        "Delta": "Delta",
+        "Gamma": "Gamma",
+        "Lambda": "Lambda",
+        "Pi": "Pi",
+        "Sigma": "Sigma",
+        "Phi": "Phi",
+        "Omega": "Omega",
+    }
+
+    for old, new in replacements.items():
+        cleaned = cleaned.replace(old, new)
+
+    cleaned = re.sub(r"\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}", r"(\1)/(\2)", cleaned)
+    cleaned = re.sub(r"\\sqrt\s*\{([^{}]+)\}", r"sqrt(\1)", cleaned)
+    cleaned = re.sub(r"\\(?:mathrm|text|operatorname)\s*\{([^{}]+)\}", r"\1", cleaned)
+    cleaned = re.sub(r"_\{([^{}]+)\}", r"_\1", cleaned)
+    cleaned = re.sub(r"\^\{([^{}]+)\}", r"^\1", cleaned)
+
+    for name, replacement in greek_map.items():
+        cleaned = cleaned.replace(f"\\{name}", replacement)
+
+    cleaned = re.sub(r"\\([A-Za-z]+)", r"\1", cleaned)
+    cleaned = cleaned.replace("{", "").replace("}", "")
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned.strip()
+
+
+def _render_display_equation_to_png(equation_text: str, run_dir: Path, equation_index: int) -> Path | None:
+    """Render a display equation to a PNG using matplotlib mathtext."""
+    normalized = " ".join(line.strip() for line in equation_text.splitlines() if line.strip())
+    if not normalized:
+        return None
+
+    output_path = run_dir / f"equation_{equation_index:03d}.png"
+    figure: Figure | None = None
+    try:
+        figure = plt.figure(figsize=(0.01, 0.01))
+        figure.patch.set_alpha(0.0)
+        text_artist = figure.text(0.0, 0.5, f"${normalized}$", fontsize=16, ha="left", va="center")
+        figure.canvas.draw()
+        bbox = text_artist.get_window_extent(renderer=figure.canvas.get_renderer()).expanded(1.08, 1.25)
+        width_in = max(bbox.width / figure.dpi, 0.5)
+        height_in = max(bbox.height / figure.dpi, 0.35)
+        figure.set_size_inches(width_in, height_in)
+        text_artist.set_position((0.02, 0.5))
+        figure.savefig(output_path, dpi=300, bbox_inches="tight", transparent=True, pad_inches=0.05)
+        return output_path
+    except Exception:
+        output_path.unlink(missing_ok=True)
+        return None
+    finally:
+        if figure is not None:
+            plt.close(figure)
+
+
+def _json_default(value: Any) -> Any:
+    """Convert non-JSON-native values into serializable forms."""
+    if isinstance(value, Path):
+        return str(value)
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:
+            pass
+    return str(value)
+
+
+def _stringify(value: Any) -> str:
+    """Convert values into concise report-friendly strings."""
+    if isinstance(value, float):
+        return f"{value:.6g}"
+    if isinstance(value, (list, tuple)):
+        return ", ".join(_stringify(item) for item in value)
+    return str(value)
