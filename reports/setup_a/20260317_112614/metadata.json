@@ -1,0 +1,25 @@
+{
+  "setup_name": "setup_a",
+  "timestamp": "20260317_112614",
+  "notebook_filename": "setup_A_static_effective_sample_size.ipynb",
+  "report_filename": "setup_a_report.docx",
+  "csv_files": [
+    "results_full.csv",
+    "summary_table.csv",
+    "input_summary.csv"
+  ],
+  "png_files": [
+    "plot_01_sampled_volume_vs_penetration_depth.png",
+    "plot_02_effective_sample_size_vs_penetration_depth.png"
+  ],
+  "key_parameters": {
+    "Probe diameter (mm)": 5.0,
+    "Penetration depth range (mm)": "0.1 to 2.0",
+    "Penetration depth step (mm)": 0.1,
+    "Bulk densities (g/cm^3)": [
+      0.4,
+      0.5,
+      0.6
+    ]
+  }
+}
