@@ -1,0 +1,35 @@
+{
+  "setup_name": "setup_c",
+  "timestamp": "20260320_110243",
+  "notebook_filename": "setup_C_spiderwheel_effective_sample_size.ipynb",
+  "report_filename": "setup_c_report.docx",
+  "csv_files": [
+    "results_full.csv",
+    "summary_table.csv",
+    "blocking_summary.csv",
+    "worked_example.csv"
+  ],
+  "png_files": [
+    "plot_01_estimate_vs_penetration_depth.png",
+    "plot_02_estimate_vs_rpm.png",
+    "plot_03_heatmap_density_05.png",
+    "plot_04_blocked_time_fraction_vs_rpm.png",
+    "plot_05_sampled_mass_per_refresh.png",
+    "plot_06_contour_density_06.png"
+  ],
+  "key_parameters": {
+    "Finger count": 4,
+    "Wheel radius (cm)": 3.0,
+    "Probe radial position (cm)": 1.8,
+    "Finger width (cm)": 0.3,
+    "Probe diameter (mm)": 5.0,
+    "Acquisition time (s)": 1.8,
+    "Density scenarios (g/cm^3)": [
+      0.4,
+      0.5,
+      0.6
+    ],
+    "RPM range": "10 to 35",
+    "Penetration depth range (mm)": "0.1 to 2.0"
+  }
+}
