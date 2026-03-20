@@ -318,6 +318,55 @@ def render_markdown_text_to_docx(doc: Any, markdown_text: str, state: Any) -> No
         flush_display_math()
 
 
+def _add_content_sections_to_docx(
+    document: Any,
+    content_sections: list[dict[str, Any]],
+    run_dir: Path | str,
+) -> None:
+    """Render structured content sections into a Word document.
+
+    Each section dict may contain:
+    - ``heading``  (str)  – section title rendered as Heading 1
+    - ``body``     (str)  – markdown text rendered into the document
+    - ``figures``  (list) – figure filenames (str) or dicts with
+      ``filename`` and optional ``caption`` keys, embedded inline
+    """
+    from docx.shared import Inches
+
+    run_path = Path(run_dir)
+    state = SimpleNamespace(run_dir=run_path, equation_counter=500)
+
+    for section in content_sections:
+        heading = section.get("heading", "")
+        body = section.get("body", "")
+        figures = section.get("figures", [])
+
+        if heading:
+            document.add_heading(heading, level=1)
+
+        if body:
+            render_markdown_text_to_docx(document, body, state)
+
+        for fig_entry in figures:
+            if isinstance(fig_entry, dict):
+                fig_name = fig_entry.get("filename", "")
+                caption = fig_entry.get("caption", "")
+            else:
+                fig_name = str(fig_entry)
+                caption = ""
+
+            fig_path = run_path / fig_name
+            if caption:
+                document.add_paragraph(caption)
+            if not fig_path.exists():
+                document.add_paragraph(f"Figure not found: {fig_name}")
+                continue
+            try:
+                document.add_picture(str(fig_path), width=Inches(6.25))
+            except Exception:
+                document.add_paragraph(f"Could not embed figure: {fig_name}")
+
+
 def build_word_report(
     report_title: str,
     setup_name: str,
@@ -330,6 +379,7 @@ def build_word_report(
     csv_filenames: list[str] | tuple[str, ...] | None,
     figure_filenames: list[str] | tuple[str, ...] | None,
     output_filename: str,
+    content_sections: list[dict[str, Any]] | None = None,
 ) -> Path:
     """Build a Word report with notebook markdown narrative and embedded figures."""
     try:
@@ -370,6 +420,9 @@ def build_word_report(
     document.add_heading("Parameter Summary", level=1)
     _add_parameter_summary(document, parameter_summary)
 
+    if content_sections:
+        _add_content_sections_to_docx(document, content_sections, run_path)
+
     document.add_heading("Exported CSV Files", level=1)
     csv_names = [name for name in (csv_filenames or []) if name]
     if csv_names:
@@ -379,6 +432,8 @@ def build_word_report(
         document.add_paragraph("No CSV tables were saved.")
     document.add_paragraph("Detailed tables are saved separately as CSV files in the run folder.")
 
+    has_inline_figures = any(section.get("figures") for section in (content_sections or []))
+
     document.add_heading("Figures", level=1)
     figure_names = [name for name in (figure_filenames or []) if name]
     if not figure_names:
@@ -387,6 +442,8 @@ def build_word_report(
         for filename in figure_names:
             figure_path = run_path / filename
             document.add_paragraph(filename, style="List Bullet")
+            if has_inline_figures:
+                continue
             if not figure_path.exists():
                 document.add_paragraph(f"Skipped embedding {filename} because the file was not found.")
                 continue
