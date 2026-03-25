@@ -1,6 +1,6 @@
 {
   "setup_name": "setup_d",
-  "timestamp": "20260320_145157",
+  "timestamp": "20260325_152117",
   "notebook_filename": "setup_D_pipe_effective_sample_size.ipynb",
   "report_filename": "setup_d_report.docx",
   "csv_files": [
@@ -9,8 +9,8 @@
     "velocity_summary.csv"
   ],
   "png_files": [
-    "plot_01_proxy_vs_penetration_depth.png",
-    "plot_02_proxy_vs_throughput.png",
+    "plot_01_estimate_vs_penetration_depth.png",
+    "plot_02_estimate_vs_throughput.png",
     "plot_03_heatmap_density_05.png",
     "plot_04_superficial_velocity_vs_throughput.png",
     "plot_05_optical_mass_per_refresh.png",
