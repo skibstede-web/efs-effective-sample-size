@@ -1,6 +1,6 @@
 {
   "setup_name": "setup_d",
-  "timestamp": "20260326_144217",
+  "timestamp": "20260327_093304",
   "notebook_filename": "setup_D_pipe_effective_sample_size.ipynb",
   "report_filename": "setup_d_report.docx",
   "csv_files": [
@@ -9,13 +9,13 @@
     "velocity_summary.csv"
   ],
   "png_files": [
-    "plot_01_estimate_vs_penetration_depth.png",
-    "plot_02_estimate_vs_throughput.png",
-    "plot_03_heatmap_density_05.png",
+    "plot_01_proxy_vs_penetration_depth.png",
+    "plot_02_proxy_vs_throughput.png",
+    "plot_03_proxy_heatmap_density_05.png",
     "plot_04_superficial_velocity_vs_throughput.png",
     "plot_05_optical_mass_per_refresh.png",
-    "plot_06_contour_density_06.png",
-    "plot_07_passed_mass_vs_throughput.png"
+    "plot_06_proxy_contour_density_06.png",
+    "plot_07_convective_reference_mass_proxy.png"
   ],
   "key_parameters": {
     "Pipe diameter (mm)": 65.0,
