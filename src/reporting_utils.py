@@ -107,8 +107,30 @@ def looks_like_python_code(text: str) -> bool:
     """Return True when markdown text strongly resembles pasted Python code."""
     normalized = (text or "").replace("\r\n", "\n")
     stripped_lines = [line.rstrip() for line in normalized.split("\n")]
-    content_lines = [line for line in stripped_lines if line.strip()]
+
+    # Strip out code-fenced blocks before analysis — they often contain
+    # ASCII-art diagrams that look like indented code.
+    outside_fence_lines: list[str] = []
+    in_fence = False
+    for line in stripped_lines:
+        if line.strip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            outside_fence_lines.append(line)
+
+    content_lines = [line for line in outside_fence_lines if line.strip()]
     if not content_lines:
+        return False
+
+    # If the cell has strong markdown signals, it is almost certainly
+    # narrative text, not pasted code.
+    markdown_signals = 0
+    markdown_signals += sum(1 for line in content_lines if re.match(r"^#{1,6}\s", line.strip()))
+    markdown_signals += sum(1 for line in content_lines if line.strip().startswith("|") and line.strip().endswith("|"))
+    markdown_signals += sum(1 for line in content_lines if "$$" in line)
+    markdown_signals += sum(1 for line in content_lines if re.search(r"\*\*[^*]+\*\*", line))
+    if markdown_signals >= 3:
         return False
 
     code_like_signals = 0
@@ -201,6 +223,58 @@ def add_markdown_cells_to_docx(doc: Any, markdown_cells: list[str], run_dir: Pat
         render_markdown_text_to_docx(doc, markdown_text, state)
 
 
+def _is_table_line(line: str) -> bool:
+    """Return True if a stripped line looks like a Markdown table row."""
+    return line.startswith("|") and line.endswith("|") and line.count("|") >= 2
+
+
+def _is_separator_line(line: str) -> bool:
+    """Return True if a stripped line is a Markdown table separator (|---|---|)."""
+    return bool(re.match(r"^\|[\s:]*-{2,}[\s:]*(\|[\s:]*-{2,}[\s:]*)*\|$", line))
+
+
+def _parse_table_row(line: str) -> list[str]:
+    """Split a Markdown table row into cell texts."""
+    inner = line.strip("|")
+    return [cell.strip() for cell in inner.split("|")]
+
+
+def _flush_table_to_docx(doc: Any, table_rows: list[list[str]], has_header: bool) -> None:
+    """Render accumulated table rows into a Word table."""
+    from docx.shared import Pt
+    from docx.oxml.ns import qn
+
+    if not table_rows:
+        return
+
+    n_cols = max(len(row) for row in table_rows)
+    # Pad rows that have fewer columns
+    for row in table_rows:
+        while len(row) < n_cols:
+            row.append("")
+
+    table = doc.add_table(rows=len(table_rows), cols=n_cols)
+    table.style = "Table Grid"
+
+    for row_idx, row_data in enumerate(table_rows):
+        for col_idx, cell_text in enumerate(row_data):
+            cell = table.cell(row_idx, col_idx)
+            cell.text = _strip_inline_markdown(cell_text)
+            for paragraph in cell.paragraphs:
+                for run in paragraph.runs:
+                    run.font.size = Pt(9)
+
+    # Bold the header row
+    if has_header and table_rows:
+        for col_idx in range(n_cols):
+            cell = table.cell(0, col_idx)
+            for paragraph in cell.paragraphs:
+                for run in paragraph.runs:
+                    run.bold = True
+
+    doc.add_paragraph("")  # spacing after table
+
+
 def render_markdown_text_to_docx(doc: Any, markdown_text: str, state: Any) -> None:
     """Render lightweight Markdown into a Word document."""
     from docx.shared import Inches
@@ -211,9 +285,12 @@ def render_markdown_text_to_docx(doc: Any, markdown_text: str, state: Any) -> No
 
     in_code_block = False
     in_display_math = False
+    in_table = False
     code_buffer: list[str] = []
     display_math_buffer: list[str] = []
     paragraph_buffer: list[str] = []
+    table_rows: list[list[str]] = []
+    table_has_header = False
 
     def flush_paragraph() -> None:
         if not paragraph_buffer:
@@ -247,12 +324,21 @@ def render_markdown_text_to_docx(doc: Any, markdown_text: str, state: Any) -> No
         except Exception:
             doc.add_paragraph(_latex_to_readable_text(equation_text))
 
+    def flush_table() -> None:
+        nonlocal in_table, table_has_header
+        if table_rows:
+            _flush_table_to_docx(doc, table_rows, table_has_header)
+            table_rows.clear()
+        in_table = False
+        table_has_header = False
+
     for raw_line in text.split("\n"):
         line = raw_line.rstrip()
         stripped = line.strip()
 
         if stripped.startswith("```"):
             flush_paragraph()
+            flush_table()
             if in_code_block:
                 flush_code_block()
                 in_code_block = False
@@ -266,6 +352,7 @@ def render_markdown_text_to_docx(doc: Any, markdown_text: str, state: Any) -> No
 
         if stripped == "$$" and not in_display_math:
             flush_paragraph()
+            flush_table()
             in_display_math = True
             continue
 
@@ -276,6 +363,7 @@ def render_markdown_text_to_docx(doc: Any, markdown_text: str, state: Any) -> No
 
         if not in_display_math and stripped.startswith("$$") and stripped.endswith("$$") and len(stripped) > 4:
             flush_paragraph()
+            flush_table()
             display_math_buffer.append(stripped[2:-2].strip())
             flush_display_math()
             continue
@@ -283,6 +371,23 @@ def render_markdown_text_to_docx(doc: Any, markdown_text: str, state: Any) -> No
         if in_display_math:
             display_math_buffer.append(line)
             continue
+
+        # Table handling
+        if _is_table_line(stripped):
+            if _is_separator_line(stripped):
+                # Separator line — mark that the preceding row was a header
+                if table_rows:
+                    table_has_header = True
+                continue
+            flush_paragraph()
+            if not in_table:
+                in_table = True
+            table_rows.append(_parse_table_row(stripped))
+            continue
+
+        # If we were in a table but this line is not a table line, flush it
+        if in_table:
+            flush_table()
 
         if not stripped:
             flush_paragraph()
@@ -312,6 +417,7 @@ def render_markdown_text_to_docx(doc: Any, markdown_text: str, state: Any) -> No
         paragraph_buffer.append(line)
 
     flush_paragraph()
+    flush_table()
     if in_code_block:
         flush_code_block()
     if in_display_math:
