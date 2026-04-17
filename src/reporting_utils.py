@@ -223,6 +223,50 @@ def add_markdown_cells_to_docx(doc: Any, markdown_cells: list[str], run_dir: Pat
         render_markdown_text_to_docx(doc, markdown_text, state)
 
 
+def get_markdown_cell_by_heading(markdown_cells: list[str], heading: str) -> str:
+    """Return the first markdown cell containing the exact heading line."""
+    normalized_heading = (heading or "").strip()
+    if not normalized_heading:
+        raise ValueError("heading must be a non-empty string.")
+
+    for markdown_text in markdown_cells:
+        lines = markdown_text.replace("\r\n", "\n").split("\n")
+        if any(line.strip() == normalized_heading for line in lines):
+            return markdown_text
+
+    raise ValueError(f"Could not find notebook markdown section with heading: {heading}")
+
+
+def strip_leading_h1_heading(markdown_text: str) -> str:
+    """Remove a leading H1 heading when the report already has its own title."""
+    lines = markdown_text.replace("\r\n", "\n").split("\n")
+    if not lines:
+        return markdown_text
+
+    if re.match(r"^#\s+", lines[0].strip()):
+        index = 1
+        while index < len(lines) and not lines[index].strip():
+            index += 1
+        return "\n".join(lines[index:])
+
+    return markdown_text
+
+
+def dataframe_to_markdown_table(df: pd.DataFrame) -> str:
+    """Render a small DataFrame as a simple Markdown table without extra dependencies."""
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("df must be a pandas DataFrame.")
+    headers = [str(column) for column in df.columns]
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join(["---"] * len(headers)) + " |",
+    ]
+    for record in df.to_dict(orient="records"):
+        row_values = [str(record[column]) for column in headers]
+        lines.append("| " + " | ".join(row_values) + " |")
+    return "\n".join(lines)
+
+
 def _is_table_line(line: str) -> bool:
     """Return True if a stripped line looks like a Markdown table row."""
     return line.startswith("|") and line.endswith("|") and line.count("|") >= 2
@@ -424,6 +468,45 @@ def render_markdown_text_to_docx(doc: Any, markdown_text: str, state: Any) -> No
         flush_display_math()
 
 
+def _add_single_content_section_to_docx(
+    document: Any,
+    section: dict[str, Any],
+    run_dir: Path,
+    state: Any,
+) -> None:
+    """Render one structured content section into a Word document."""
+    from docx.shared import Inches
+
+    heading = section.get("heading", "")
+    body = section.get("body", "")
+    figures = section.get("figures", [])
+
+    if heading:
+        document.add_heading(heading, level=1)
+
+    if body:
+        render_markdown_text_to_docx(document, body, state)
+
+    for fig_entry in figures:
+        if isinstance(fig_entry, dict):
+            fig_name = fig_entry.get("filename", "")
+            caption = fig_entry.get("caption", "")
+        else:
+            fig_name = str(fig_entry)
+            caption = ""
+
+        fig_path = run_dir / fig_name
+        if caption:
+            document.add_paragraph(caption)
+        if not fig_path.exists():
+            document.add_paragraph(f"Figure not found: {fig_name}")
+            continue
+        try:
+            document.add_picture(str(fig_path), width=Inches(6.25))
+        except Exception:
+            document.add_paragraph(f"Could not embed figure: {fig_name}")
+
+
 def _add_content_sections_to_docx(
     document: Any,
     content_sections: list[dict[str, Any]],
@@ -437,40 +520,35 @@ def _add_content_sections_to_docx(
     - ``figures``  (list) – figure filenames (str) or dicts with
       ``filename`` and optional ``caption`` keys, embedded inline
     """
-    from docx.shared import Inches
-
     run_path = Path(run_dir)
     state = SimpleNamespace(run_dir=run_path, equation_counter=500)
-
     for section in content_sections:
-        heading = section.get("heading", "")
-        body = section.get("body", "")
-        figures = section.get("figures", [])
+        _add_single_content_section_to_docx(document, section, run_path, state)
 
-        if heading:
-            document.add_heading(heading, level=1)
 
-        if body:
-            render_markdown_text_to_docx(document, body, state)
+def _add_exported_artifacts_to_docx(
+    document: Any,
+    csv_filenames: list[str] | tuple[str, ...] | None,
+    figure_filenames: list[str] | tuple[str, ...] | None,
+) -> None:
+    """Render exported artifact lists into a Word document appendix."""
+    document.add_heading("Exported artifacts", level=1)
 
-        for fig_entry in figures:
-            if isinstance(fig_entry, dict):
-                fig_name = fig_entry.get("filename", "")
-                caption = fig_entry.get("caption", "")
-            else:
-                fig_name = str(fig_entry)
-                caption = ""
+    document.add_paragraph("CSV files")
+    csv_names = [name for name in (csv_filenames or []) if name]
+    if csv_names:
+        for filename in csv_names:
+            document.add_paragraph(filename, style="List Bullet")
+    else:
+        document.add_paragraph("No CSV files were saved.")
 
-            fig_path = run_path / fig_name
-            if caption:
-                document.add_paragraph(caption)
-            if not fig_path.exists():
-                document.add_paragraph(f"Figure not found: {fig_name}")
-                continue
-            try:
-                document.add_picture(str(fig_path), width=Inches(6.25))
-            except Exception:
-                document.add_paragraph(f"Could not embed figure: {fig_name}")
+    document.add_paragraph("Figure files")
+    figure_names = [name for name in (figure_filenames or []) if name]
+    if figure_names:
+        for filename in figure_names:
+            document.add_paragraph(filename, style="List Bullet")
+    else:
+        document.add_paragraph("No figure files were saved.")
 
 
 def build_word_report(
@@ -562,6 +640,85 @@ def build_word_report(
     document.add_paragraph(
         "This report captures the notebook narrative, summary metadata, and exported artifacts for this run."
     )
+
+    document.save(str(output_path))
+    return output_path
+
+
+def build_structured_word_report(
+    report_title: str,
+    setup_name: str,
+    timestamp: str,
+    run_dir: Path | str,
+    notebook_path: Path | str,
+    output_filename: str,
+    executive_summary_text: str | None = None,
+    parameter_summary: dict[str, Any] | list[Any] | tuple[Any, ...] | str | None = None,
+    report_sections: list[dict[str, Any]] | None = None,
+    appendix_sections: list[dict[str, Any]] | None = None,
+    csv_filenames: list[str] | tuple[str, ...] | None = None,
+    figure_filenames: list[str] | tuple[str, ...] | None = None,
+) -> Path:
+    """Build a manuscript-style Word report from selected notebook sections and curated content."""
+    try:
+        from docx import Document
+    except ImportError as exc:
+        raise ImportError(
+            "python-docx is required for Word export. Install it before running this notebook export section."
+        ) from exc
+
+    run_path = Path(run_dir)
+    notebook_file = Path(notebook_path)
+    output_path = run_path / output_filename
+    document = Document()
+
+    document.add_heading(report_title, level=0)
+    document.add_paragraph(f"Setup: {setup_name}")
+    document.add_paragraph(f"Report timestamp: {timestamp}")
+    document.add_paragraph(f"Source notebook: {notebook_file.name}")
+
+    if executive_summary_text:
+        document.add_heading("Executive summary", level=1)
+        document.add_paragraph(executive_summary_text)
+
+    if parameter_summary is not None:
+        document.add_heading("Key parameters", level=1)
+        _add_parameter_summary(document, parameter_summary)
+
+    markdown_cells = extract_markdown_cells_from_notebook(notebook_file)
+    state = SimpleNamespace(run_dir=run_path, equation_counter=1000)
+
+    for section in report_sections or []:
+        source = section.get("source", "content")
+        if source == "notebook":
+            markdown_text = get_markdown_cell_by_heading(markdown_cells, section.get("heading", ""))
+            if section.get("strip_leading_h1", True):
+                markdown_text = strip_leading_h1_heading(markdown_text)
+            render_markdown_text_to_docx(document, markdown_text, state)
+            continue
+        if source == "content":
+            _add_single_content_section_to_docx(document, section, run_path, state)
+            continue
+        raise ValueError(f"Unsupported report section source: {source!r}")
+
+    if appendix_sections or csv_filenames or figure_filenames:
+        document.add_heading("Appendices", level=1)
+
+    for section in appendix_sections or []:
+        source = section.get("source", "content")
+        if source == "notebook":
+            markdown_text = get_markdown_cell_by_heading(markdown_cells, section.get("heading", ""))
+            if section.get("strip_leading_h1", True):
+                markdown_text = strip_leading_h1_heading(markdown_text)
+            render_markdown_text_to_docx(document, markdown_text, state)
+            continue
+        if source == "content":
+            _add_single_content_section_to_docx(document, section, run_path, state)
+            continue
+        raise ValueError(f"Unsupported appendix section source: {source!r}")
+
+    if csv_filenames or figure_filenames:
+        _add_exported_artifacts_to_docx(document, csv_filenames, figure_filenames)
 
     document.save(str(output_path))
     return output_path

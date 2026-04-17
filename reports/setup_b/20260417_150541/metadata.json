@@ -1,0 +1,43 @@
+{
+  "setup_name": "setup_b",
+  "timestamp": "20260417_150541",
+  "notebook_filename": "setup_B_spoon_effective_sample_size.ipynb",
+  "report_filename": "setup_b_report.docx",
+  "report_layout": "structured_scientific_report",
+  "csv_files": [
+    "results_full.csv",
+    "summary_table.csv",
+    "input_summary.csv",
+    "flip_summary.csv",
+    "plot2_static_sample_mass_table.csv",
+    "plot4_spoon_interval_effect_table.csv",
+    "selected_depths_interval_table.csv"
+  ],
+  "png_files": [
+    "plot_01_static_sampled_volume_per_spoon.png",
+    "plot_02_static_sample_mass_per_spoon.png",
+    "plot_03_spoons_contributing_vs_interval.png",
+    "plot_04_effective_sample_size_vs_flip_interval.png",
+    "plot_05_effective_mass_vs_flip_interval_selected_depths.png"
+  ],
+  "key_parameters": {
+    "Probe diameter (mm)": 5.0,
+    "Penetration depth range (mm)": "0.1 to 2.0",
+    "Penetration depth step (mm)": 0.1,
+    "Bulk densities (g/cm^3)": [
+      0.4,
+      0.5,
+      0.6
+    ],
+    "Subscans": 256,
+    "Integration time (ms)": 15.0,
+    "Acquisition time (s)": 3.84,
+    "Spoon intervals (s)": [
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0
+    ]
+  }
+}
