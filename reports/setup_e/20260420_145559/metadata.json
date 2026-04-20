@@ -1,0 +1,33 @@
+{
+  "setup_name": "setup_e",
+  "timestamp": "20260420_145559",
+  "notebook_filename": "setup_E_PATrig_effective_sample_size.ipynb",
+  "report_filename": "setup_e_report.docx",
+  "report_layout": "structured_scientific_report",
+  "csv_files": [
+    "results_full.csv",
+    "summary_table.csv",
+    "input_summary.csv"
+  ],
+  "png_files": [
+    "plot_01_new_mass_per_acq_vs_acquisition_time.png",
+    "plot_02_mass_passed_vs_acquisition_time.png",
+    "plot_03_refresh_fraction_vs_acquisition_time.png",
+    "plot_04_heatmap_mass_passed_throughput_vs_acquisition.png",
+    "plot_05_heatmap_new_mass_throughput_vs_acquisition.png"
+  ],
+  "key_parameters": {
+    "Pipe diameter (cm)": 10.0,
+    "Total rig height (cm)": 80.0,
+    "Maintained fill fraction (-)": 0.5,
+    "Modeled filled height (cm)": 40.0,
+    "Probe height from bottom (cm)": 20.0,
+    "NIR spot diameter (cm)": 2.5,
+    "Measurement depth (cm)": 0.1,
+    "Bulk density (g/cm^3)": 0.3,
+    "Throughput (kg)": 95.0,
+    "Throughput time (s)": 3600.0,
+    "Acquisition time range (s)": "0.1 to 5.0",
+    "Axial length model": "spot_diameter"
+  }
+}
