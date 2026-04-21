@@ -1,0 +1,12 @@
+parameter,value
+pipe_diameter_cm,10.0
+total_rig_height_cm,80.0
+maintained_fill_fraction,0.5
+probe_height_from_bottom_cm,20.0
+nir_spot_diameter_cm,2.5
+measurement_depth_cm,0.1
+bulk_density_g_per_cm3,0.3
+throughput_kg,95.0
+throughput_time_s,3600.0
+acquisition_time_s,1.0
+axial_length_model,spot_diameter
