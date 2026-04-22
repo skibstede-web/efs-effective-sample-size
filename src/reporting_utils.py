@@ -496,13 +496,13 @@ def _add_single_content_section_to_docx(
             caption = ""
 
         fig_path = run_dir / fig_name
-        if caption:
-            document.add_paragraph(caption)
         if not fig_path.exists():
             document.add_paragraph(f"Figure not found: {fig_name}")
             continue
         try:
             document.add_picture(str(fig_path), width=Inches(6.25))
+            if caption:
+                document.add_paragraph(caption)
         except Exception:
             document.add_paragraph(f"Could not embed figure: {fig_name}")
 
