@@ -1,0 +1,38 @@
+{
+  "setup_name": "setup_e",
+  "timestamp": "20260422_100755",
+  "notebook_filename": "setup_E_PATrig_effective_sample_size.ipynb",
+  "report_filename": "setup_e_report.docx",
+  "report_layout": "structured_scientific_report_pandoc",
+  "report_markdown_filename": "setup_e_report.md",
+  "csv_files": [
+    "results_full.csv",
+    "summary_table.csv",
+    "penetration_depth_table.csv",
+    "acquisition_time_table.csv",
+    "input_summary.csv"
+  ],
+  "png_files": [
+    "plot_01_instant_swept_unique_vs_penetration_depth.png",
+    "plot_02_effective_sample_size_vs_penetration_depth_by_density.png",
+    "plot_03_powder_advance_vs_acquisition_time.png",
+    "plot_04_effective_sample_size_vs_acquisition_time_by_density.png",
+    "plot_05_swept_increment_mass_vs_acquisition_time_by_density.png",
+    "plot_06_heatmap_effective_sample_size_density_04.png",
+    "plot_07_heatmap_effective_sample_size_density_05.png",
+    "plot_08_heatmap_effective_sample_size_density_06.png",
+    "plot_09_time_weighted_proxy_vs_acquisition_time_by_density.png",
+    "schematic_swept_capsule_geometry.png"
+  ],
+  "key_parameters": {
+    "Pipe diameter (cm)": 10.0,
+    "NIR spot diameter (cm)": 2.5,
+    "Base measurement depth (cm)": 0.1,
+    "Measurement depth sweep (mm)": "0.1 to 2.0",
+    "Bulk density scenarios (g/cm^3)": "0.4, 0.5, 0.6",
+    "Base throughput (kg/h)": 95.0,
+    "Acquisition time sweep (s)": "1.0 to 5.0",
+    "Throughput sweep (kg/h)": "10 to 100",
+    "Primary ESS proxy": "unique exposed swept capsule mass"
+  }
+}

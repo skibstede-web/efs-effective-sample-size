@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import re
+import subprocess
 from types import SimpleNamespace
 from typing import Any
 
@@ -722,6 +723,218 @@ def build_structured_word_report(
 
     document.save(str(output_path))
     return output_path
+
+
+def build_structured_word_report_pandoc(
+    report_title: str,
+    setup_name: str,
+    timestamp: str,
+    run_dir: Path | str,
+    notebook_path: Path | str,
+    output_filename: str,
+    executive_summary_text: str | None = None,
+    parameter_summary: dict[str, Any] | list[Any] | tuple[Any, ...] | str | None = None,
+    report_sections: list[dict[str, Any]] | None = None,
+    appendix_sections: list[dict[str, Any]] | None = None,
+    csv_filenames: list[str] | tuple[str, ...] | None = None,
+    figure_filenames: list[str] | tuple[str, ...] | None = None,
+    markdown_filename: str | None = None,
+    reference_docx: Path | str | None = None,
+    pandoc_path: str = "pandoc",
+) -> Path:
+    """Build a Word report via Pandoc so LaTeX math becomes native Word equations.
+
+    The function writes an intermediate Markdown file into ``run_dir`` and then
+    calls Pandoc to create ``output_filename``. Display and inline equations are
+    preserved as TeX math in the Markdown so Pandoc can convert them to Word's
+    native OMML equation format.
+    """
+    run_path = Path(run_dir)
+    notebook_file = Path(notebook_path)
+    output_path = run_path / output_filename
+    markdown_path = run_path / (markdown_filename or f"{output_path.stem}.md")
+
+    report_markdown = _build_structured_report_markdown(
+        report_title=report_title,
+        setup_name=setup_name,
+        timestamp=timestamp,
+        run_dir=run_path,
+        notebook_path=notebook_file,
+        executive_summary_text=executive_summary_text,
+        parameter_summary=parameter_summary,
+        report_sections=report_sections,
+        appendix_sections=appendix_sections,
+        csv_filenames=csv_filenames,
+        figure_filenames=figure_filenames,
+    )
+    markdown_path.write_text(report_markdown, encoding="utf-8")
+
+    command = [
+        pandoc_path,
+        str(markdown_path),
+        "--from=markdown+tex_math_dollars+pipe_tables",
+        "--to=docx",
+        f"--output={output_path}",
+        f"--resource-path={run_path}",
+    ]
+    if reference_docx is not None:
+        command.append(f"--reference-doc={Path(reference_docx)}")
+
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            "Pandoc was not found. Install Pandoc or pass pandoc_path to build_structured_word_report_pandoc."
+        ) from exc
+
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "Pandoc Word report export failed.\n"
+            f"Command: {' '.join(command)}\n"
+            f"stdout:\n{completed.stdout}\n"
+            f"stderr:\n{completed.stderr}"
+        )
+
+    return output_path
+
+
+def _build_structured_report_markdown(
+    report_title: str,
+    setup_name: str,
+    timestamp: str,
+    run_dir: Path,
+    notebook_path: Path,
+    executive_summary_text: str | None,
+    parameter_summary: dict[str, Any] | list[Any] | tuple[Any, ...] | str | None,
+    report_sections: list[dict[str, Any]] | None,
+    appendix_sections: list[dict[str, Any]] | None,
+    csv_filenames: list[str] | tuple[str, ...] | None,
+    figure_filenames: list[str] | tuple[str, ...] | None,
+) -> str:
+    """Assemble the structured report content as Pandoc-friendly Markdown."""
+    markdown_cells = extract_markdown_cells_from_notebook(notebook_path)
+    chunks: list[str] = [
+        f"# {report_title}",
+        "",
+        f"Setup: {setup_name}",
+        "",
+        f"Report timestamp: {timestamp}",
+        "",
+        f"Source notebook: {notebook_path.name}",
+        "",
+    ]
+
+    if executive_summary_text:
+        chunks.extend(["## Executive summary", "", executive_summary_text.strip(), ""])
+
+    if parameter_summary is not None:
+        chunks.extend(["## Key parameters", "", _parameter_summary_to_markdown(parameter_summary), ""])
+
+    for section in report_sections or []:
+        chunks.append(_section_to_markdown(section, markdown_cells, run_dir))
+
+    if appendix_sections or csv_filenames or figure_filenames:
+        chunks.extend(["## Appendices", ""])
+
+    for section in appendix_sections or []:
+        chunks.append(_section_to_markdown(section, markdown_cells, run_dir))
+
+    if csv_filenames or figure_filenames:
+        chunks.append(_exported_artifacts_to_markdown(csv_filenames, figure_filenames))
+
+    return "\n".join(chunk.rstrip() for chunk in chunks if chunk is not None).strip() + "\n"
+
+
+def _section_to_markdown(section: dict[str, Any], markdown_cells: list[str], run_dir: Path) -> str:
+    """Render a structured report section as Markdown."""
+    source = section.get("source", "content")
+    if source == "notebook":
+        markdown_text = get_markdown_cell_by_heading(markdown_cells, section.get("heading", ""))
+        if section.get("strip_leading_h1", True):
+            markdown_text = strip_leading_h1_heading(markdown_text)
+        return markdown_text.strip() + "\n"
+    if source == "content":
+        return _content_section_to_markdown(section, run_dir)
+    raise ValueError(f"Unsupported report section source: {source!r}")
+
+
+def _content_section_to_markdown(section: dict[str, Any], run_dir: Path) -> str:
+    """Render a curated content section as Markdown."""
+    chunks: list[str] = []
+    heading = str(section.get("heading", "") or "").strip()
+    body = str(section.get("body", "") or "").strip()
+    figures = section.get("figures", [])
+
+    if heading:
+        chunks.extend([f"## {heading}", ""])
+    if body:
+        chunks.extend([body, ""])
+
+    for fig_entry in figures:
+        if isinstance(fig_entry, dict):
+            fig_name = str(fig_entry.get("filename", "") or "").strip()
+            caption = str(fig_entry.get("caption", "") or fig_name).strip()
+        else:
+            fig_name = str(fig_entry).strip()
+            caption = fig_name
+        if not fig_name:
+            continue
+        fig_path = run_dir / fig_name
+        if fig_path.exists():
+            chunks.extend([f"![{_escape_markdown_image_caption(caption)}]({fig_name})", ""])
+        else:
+            chunks.extend([f"Figure not found: {fig_name}", ""])
+
+    return "\n".join(chunks).strip() + "\n"
+
+
+def _parameter_summary_to_markdown(parameter_summary: Any) -> str:
+    """Render parameter summary content as Markdown."""
+    if parameter_summary is None:
+        return "No parameter summary provided."
+    if isinstance(parameter_summary, dict):
+        if not parameter_summary:
+            return "No parameter summary provided."
+        return "\n".join(f"- {key}: {_stringify(value)}" for key, value in parameter_summary.items())
+    if isinstance(parameter_summary, (list, tuple)):
+        if not parameter_summary:
+            return "No parameter summary provided."
+        lines: list[str] = []
+        for item in parameter_summary:
+            if isinstance(item, dict) and len(item) == 1:
+                key, value = next(iter(item.items()))
+                lines.append(f"- {key}: {_stringify(value)}")
+            else:
+                lines.append(f"- {_stringify(item)}")
+        return "\n".join(lines)
+    return _stringify(parameter_summary)
+
+
+def _exported_artifacts_to_markdown(
+    csv_filenames: list[str] | tuple[str, ...] | None,
+    figure_filenames: list[str] | tuple[str, ...] | None,
+) -> str:
+    """Render exported artifact lists as Markdown."""
+    chunks = ["## Exported artifacts", "", "CSV files", ""]
+    csv_names = [name for name in (csv_filenames or []) if name]
+    if csv_names:
+        chunks.extend(f"- {name}" for name in csv_names)
+    else:
+        chunks.append("No CSV files were saved.")
+
+    chunks.extend(["", "Figure files", ""])
+    figure_names = [name for name in (figure_filenames or []) if name]
+    if figure_names:
+        chunks.extend(f"- {name}" for name in figure_names)
+    else:
+        chunks.append("No figure files were saved.")
+
+    return "\n".join(chunks).strip() + "\n"
+
+
+def _escape_markdown_image_caption(caption: str) -> str:
+    """Escape characters that would break Markdown image alt text."""
+    return caption.replace("[", "\\[").replace("]", "\\]")
 
 
 def _add_parameter_summary(document: Any, parameter_summary: Any) -> None:
