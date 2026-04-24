@@ -1,0 +1,7 @@
+Setup,Scenario,Basis,Probe mm,Depth mm,Throughput kg/h,Acq s,Spoon s,RPM,Density g/cm^3
+A,A1,Static illuminated volume,5.0,1.0,,1.8,,,0.4
+B,B2,Static mass times spoon presentations,5.0,1.0,95.0,3.6,3.0,,0.4
+C,C1,Blocked deterministic renewal,5.0,1.0,95.0,1.8,,32.0,0.4
+D,D1,Flow-refresh proxy,5.0,1.0,95.0,1.8,,,0.4
+E,E1,Swept capsule unique exposure,5.0,1.0,95.0,1.8,,,0.4
+E,E2,Swept capsule unique exposure,25.0,1.0,95.0,1.8,,,0.4

@@ -39,6 +39,76 @@ IMPORT_NAMES = {
 }
 
 
+def candidate_pandoc_paths() -> list[Path]:
+    candidates: list[Path] = []
+
+    direct_path = shutil.which("pandoc")
+    if direct_path:
+        candidates.append(Path(direct_path))
+
+    for scope in ("User", "Machine"):
+        raw_path = os.environ.get("PATH") if scope == "Process" else None
+        if scope != "Process":
+            raw_path = os.environ.get("PATH")
+            if platform.system().lower() == "windows":
+                raw_path = os.environ.get("PATH")
+        if scope == "User" and platform.system().lower() == "windows":
+            raw_path = os.environ.get("PATH")
+            try:
+                raw_path = os.environ.get("PATH") or ""
+                import winreg  # type: ignore
+
+                hive = winreg.HKEY_CURRENT_USER if scope == "User" else winreg.HKEY_LOCAL_MACHINE
+                subkey = r"Environment" if scope == "User" else r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+                with winreg.OpenKey(hive, subkey) as key:
+                    raw_path, _ = winreg.QueryValueEx(key, "Path")
+            except OSError:
+                raw_path = ""
+        elif scope == "Machine" and platform.system().lower() == "windows":
+            try:
+                import winreg  # type: ignore
+
+                with winreg.OpenKey(
+                    winreg.HKEY_LOCAL_MACHINE,
+                    r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment",
+                ) as key:
+                    raw_path, _ = winreg.QueryValueEx(key, "Path")
+            except OSError:
+                raw_path = ""
+
+        for entry in str(raw_path or "").split(os.pathsep):
+            if not entry:
+                continue
+            candidates.append(Path(entry) / "pandoc.exe")
+            candidates.append(Path(entry) / "pandoc")
+
+    candidates.extend(
+        [
+            Path.home() / "AppData" / "Local" / "Pandoc" / "pandoc.exe",
+            Path.home() / "AppData" / "Local" / "Pandoc" / "pandoc",
+            Path("C:/Program Files/Pandoc/pandoc.exe"),
+            Path("C:/Program Files/Pandoc/pandoc"),
+        ]
+    )
+
+    unique_candidates: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_candidates.append(candidate)
+    return unique_candidates
+
+
+def find_pandoc() -> Path | None:
+    for candidate in candidate_pandoc_paths():
+        if candidate.exists() and candidate.is_file():
+            return candidate
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Check and prepare dependencies for the EFS notebooks and Pandoc Word export."
@@ -212,11 +282,15 @@ def package_version(python_exe: str, package: str) -> str:
 def check_pandoc() -> bool:
     print()
     print("Checking Pandoc")
-    pandoc = shutil.which("pandoc")
+    pandoc_path = find_pandoc()
+    pandoc = str(pandoc_path) if pandoc_path else None
     if not pandoc:
         print("  MISSING pandoc")
         return False
-    completed = subprocess.run(["pandoc", "--version"], capture_output=True, text=True, check=False)
+    pandoc_dir = str(Path(pandoc).parent)
+    if pandoc_dir not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = os.environ.get("PATH", "") + os.pathsep + pandoc_dir
+    completed = subprocess.run([pandoc, "--version"], capture_output=True, text=True, check=False)
     first_line = completed.stdout.splitlines()[0] if completed.stdout else pandoc
     print(f"  OK      {first_line}")
     return True

@@ -1,0 +1,15 @@
+{
+  "setup_name": "setup_comparison",
+  "aligned_density_g_cm3": 0.4,
+  "aligned_penetration_depth_mm": 1.0,
+  "aligned_throughput_kg_h": 95.0,
+  "default_acquisition_time_s": 1.8,
+  "note": "Setup B 1.8 s scenario intentionally omitted; Setup A acquisition time is reported for alignment only.",
+  "source_report_runs": {
+    "setup_a": "C:\\temp files\\EFS\\reports\\setup_a\\20260422_115750",
+    "setup_b": "C:\\temp files\\EFS\\reports\\setup_b\\20260423_083348",
+    "setup_c": "C:\\temp files\\EFS\\reports\\setup_c\\20260422_115630",
+    "setup_d": "C:\\temp files\\EFS\\reports\\setup_d\\20260422_115522",
+    "setup_e": "C:\\temp files\\EFS\\reports\\setup_e\\20260422_115431"
+  }
+}
