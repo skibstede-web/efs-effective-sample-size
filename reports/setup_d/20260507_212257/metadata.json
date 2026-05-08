@@ -1,0 +1,43 @@
+{
+  "setup_name": "setup_d",
+  "timestamp": "20260507_212257",
+  "notebook_filename": "setup_D_pipe_effective_sample_size_holdup_refactor.ipynb",
+  "report_filename": "setup_d_report.docx",
+  "report_layout": "structured_scientific_report_pandoc",
+  "report_markdown_filename": "setup_d_report.md",
+  "csv_files": [
+    "worked_example_summary.csv",
+    "holdup_sensitivity.csv",
+    "penetration_sweep.csv",
+    "mass_scale_comparison.csv"
+  ],
+  "png_files": [
+    "schematic_probe_geometry_and_bookkeeping.png",
+    "plot_01_local_velocity_vs_holdup.png",
+    "plot_02_renewal_vs_holdup.png",
+    "plot_03_ess_proxy_vs_holdup.png",
+    "plot_04_ess_proxy_vs_penetration_selected_holdups.png",
+    "plot_05_contour_ess_proxy_holdup_penetration.png",
+    "plot_06_mass_scale_comparison.png"
+  ],
+  "key_parameters": {
+    "Pipe diameter (mm)": 65.0,
+    "Pipe tilt from vertical (deg)": 26.5,
+    "Probe diameter (mm)": 5.0,
+    "Acquisition time (s)": 1.8,
+    "Mass flow (kg/h)": 95.0,
+    "Bulk density (g/cm^3)": 0.4,
+    "Nominal holdup fraction": 0.3,
+    "Window coverage fraction": 1.0,
+    "Wall velocity factor": 1.0,
+    "Optical density factor": 1.0,
+    "Holdup sensitivity values": [
+      1.0,
+      0.6,
+      0.3,
+      0.15,
+      0.1,
+      0.05
+    ]
+  }
+}
