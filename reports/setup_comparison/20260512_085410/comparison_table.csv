@@ -1,0 +1,7 @@
+setup,scenario,basis,probe_diameter_mm,penetration_depth_mm,throughput_kg_h,acquisition_time_s,spoon_interval_s,wheel_speed_rpm,density_g_cm3,holdup_fraction,ess_mg,rank
+A,A1,Static illuminated volume,5.0,1.0,,1.8,,,0.4,,7.853981633974484,6
+B,B2,Static mass times spoon presentations,5.0,1.0,95.0,3.6,3.0,,0.4,,9.42477796076938,5
+C,C1,Blocked deterministic renewal,5.0,1.0,95.0,1.8,,32.0,0.4,,120.28128159338743,3
+D,D1,Holdup-adjusted renewal proxy (nominal holdup),5.0,1.0,95.0,1.8,,,0.4,0.3,187.377,2
+E,E1,Swept capsule unique exposure,5.0,1.0,95.0,1.8,,,0.4,,38.0934208214346,4
+E,E2,Swept capsule unique exposure,25.0,1.0,95.0,1.8,,,0.4,,347.5467367866627,1

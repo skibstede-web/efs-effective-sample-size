@@ -1,0 +1,6 @@
+Quantity,Value,Unit
+Variance floor,0.160,(mg/g)^2
+SD floor,0.400,mg/g
+Sampling heterogeneity constant k,36.000,(mg/g)^2 mg^b
+ESS exponent,1.000,dimensionless
+Approximate transition ESS,225.0,mg

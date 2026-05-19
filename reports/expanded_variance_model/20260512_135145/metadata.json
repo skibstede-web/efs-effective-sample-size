@@ -1,0 +1,45 @@
+{
+  "setup_name": "expanded_variance_model",
+  "timestamp": "20260512_135145",
+  "notebook_filename": "expanded_variance_model_ESS.ipynb",
+  "report_filename": "expanded_variance_model_ESS_report.docx",
+  "report_layout": "structured_scientific_report_pandoc",
+  "report_markdown_filename": "expanded_variance_model_ESS_report.md",
+  "equation_rendering": "Pandoc TeX math to Word OMML editable equations",
+  "csv_files": [
+    "simulation_01_ess_response.csv",
+    "simulation_02_b_sensitivity.csv",
+    "simulation_03_variance_floor_sensitivity.csv",
+    "simulation_04_static_vs_flowing.csv",
+    "simulation_05_practical_pharmaceutical_example.csv",
+    "sensitivity_summary.csv"
+  ],
+  "png_files": [
+    "plot_01_observed_sd_vs_ESS.png",
+    "plot_02_observed_variance_vs_ESS.png",
+    "plot_03_variance_vs_ESS_by_b.png",
+    "plot_04_sd_vs_ESS_by_b.png",
+    "plot_05_sd_vs_ESS_by_variance_floor.png",
+    "plot_06_static_vs_flowing_powder_systems.png",
+    "plot_07_practical_pharmaceutical_example.png"
+  ],
+  "results_folder": "C:\\temp files\\EFS\\results\\expanded_variance_model",
+  "key_parameters": {
+    "ESS range (mg)": "1 to 1000",
+    "Variance floor ((mg/g)^2)": 0.16,
+    "SD floor (mg/g)": 0.4,
+    "Sampling heterogeneity constant k": 36.0,
+    "Default exponent b": 1.0,
+    "b values compared": [
+      0.5,
+      1.0,
+      1.5
+    ],
+    "Variance-floor SD values compared (mg/g)": [
+      0.1,
+      0.3,
+      0.5
+    ],
+    "Results folder": "results\\expanded_variance_model"
+  }
+}

@@ -1,0 +1,18 @@
+Metric,Value,Unit
+mass flow,95.0,kg/h
+bulk density,0.4,g/cm^3
+pipe diameter,65.0,mm
+probe diameter,5.0,mm
+penetration depth,1.0,mm
+acquisition time,1.8,s
+superficial velocity,1.98813,cm/s
+apparent holdup fraction,0.3,-
+wall velocity factor,1.0,-
+window coverage fraction,1.0,-
+estimated local probe velocity,6.6271,cm/s
+travel distance during acquisition,11.9288,cm
+instantaneous optical mass,7.85398,mg
+renewal factor,23.8575,-
+holdup-adjusted ESS proxy,187.377,mg
+convective swept-ribbon reference mass,0.944738,g
+total process mass passing pipe cross-section during acquisition,47.5,g

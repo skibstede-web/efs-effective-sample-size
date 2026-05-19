@@ -1,0 +1,4 @@
+setup,ESS_mg,sigma_floor_variance_mg_g_sq,k,b,observed_variance_mg_g_sq,observed_sd_mg_g,interpretation
+Low ESS setup,10.0,0.16,36.0,1.0,3.7600000000000002,1.9390719429665317,Sampling-limited; local heterogeneity dominates repeatability.
+Medium ESS setup,100.0,0.16,36.0,1.0,0.52,0.7211102550927979,Transition region; both sampling and floor are important.
+High ESS setup,1000.0,0.16,36.0,1.0,0.196,0.4427188724235731,Near floor-limited; further ESS gains have diminishing returns.
